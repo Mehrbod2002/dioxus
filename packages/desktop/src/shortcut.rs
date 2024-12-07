@@ -11,6 +11,7 @@ pub use global_hotkey::{
     hotkey::{Code, HotKey},
     Error as HotkeyError, GlobalHotKeyEvent, GlobalHotKeyManager,
 };
+use winit::keyboard::ModifiersState;
 
 #[cfg(any(target_os = "ios", target_os = "android"))]
 pub use crate::mobile_shortcut::*;
@@ -19,7 +20,6 @@ use crate::window;
 use dioxus_html::input_data::keyboard_types::Modifiers;
 use slab::Slab;
 use std::{cell::RefCell, collections::HashMap, rc::Rc, str::FromStr};
-use tao::keyboard::ModifiersState;
 
 /// An global id for a shortcut.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

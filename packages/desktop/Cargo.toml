@@ -52,9 +52,9 @@ dioxus-hooks = { workspace = true }
 futures-util = { workspace = true }
 urlencoding = "2.1.2"
 async-trait = "0.1.68"
-tao = { workspace = true, features = ["rwh_05"] }
 once_cell = { workspace = true }
 dioxus-history.workspace = true
+winit = "0.30.5"
 
 
 [target.'cfg(unix)'.dependencies]

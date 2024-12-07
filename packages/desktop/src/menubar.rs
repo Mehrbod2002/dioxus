@@ -1,4 +1,4 @@
-use tao::window::Window;
+use winit::window::Window;
 
 #[cfg(not(any(target_os = "ios", target_os = "android")))]
 pub type DioxusMenu = muda::Menu;
@@ -42,7 +42,7 @@ mod desktop_platforms {
 
         #[cfg(target_os = "linux")]
         {
-            use tao::platform::unix::WindowExtUnix;
+            use winit::platform::unix::WindowExtUnix;
             menu.init_for_gtk_window(window.gtk_window(), window.default_vbox())
                 .unwrap();
         }

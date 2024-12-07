@@ -173,15 +173,15 @@ impl WebviewInstance {
         // get a window that is not the size of the screen and weird black bars.
         #[cfg(not(any(target_os = "ios", target_os = "android")))]
         {
-            if cfg.window.window.inner_size.is_none() {
-                window = window.with_inner_size(tao::dpi::LogicalSize::new(800.0, 600.0));
+            if cfg.window.inner_size().height == 0 || cfg.window.inner_size().width == 0 {
+                window.request_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0));
             }
         }
 
         // We assume that if the icon is None in cfg, then the user just didnt set it
-        if cfg.window.window.window_icon.is_none() {
-            window = window.with_window_icon(Some(
-                tao::window::Icon::from_rgba(
+        if cfg.window.window_icon.is_none() {
+            window.set_window_icon(Some(
+                winit::window::Icon::from_rgba(
                     include_bytes!("./assets/default_icon.bin").to_vec(),
                     460,
                     460,
@@ -211,7 +211,7 @@ impl WebviewInstance {
         let asset_handlers = AssetHandlerRegistry::new();
         let edits = WebviewEdits::new(dom.runtime(), edit_queue.clone());
         let file_hover = NativeFileHover::default();
-        let headless = !cfg.window.window.visible;
+        let headless = !cfg.window.is_visible().unwrap_or(false);
 
         let request_handler = {
             to_owned![
@@ -308,7 +308,7 @@ impl WebviewInstance {
             target_os = "android"
         )))]
         let mut webview = {
-            use tao::platform::unix::WindowExtUnix;
+            use winit::platform::unix::WindowExtUnix;
             use wry::WebViewBuilderExtUnix;
             let vbox = window.default_vbox().unwrap();
             WebViewBuilder::new_gtk(vbox)
@@ -329,7 +329,7 @@ impl WebviewInstance {
                     window.inner_size().height,
                 )),
             })
-            .with_transparent(cfg.window.window.transparent)
+            .with_transparent(cfg.window.transparent)
             .with_url("dioxus://index.html/")
             .with_ipc_handler(ipc_handler)
             .with_navigation_handler(|var| {

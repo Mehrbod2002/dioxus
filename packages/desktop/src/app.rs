@@ -16,10 +16,10 @@ use std::{
     rc::Rc,
     sync::Arc,
 };
-use tao::{
+use winit::{
     dpi::PhysicalSize,
-    event::Event,
-    event_loop::{ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy, EventLoopWindowTarget},
+    event::WindowEvent,
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
     window::WindowId,
 };
 
@@ -50,15 +50,16 @@ pub(crate) struct SharedContext {
     pub(crate) pending_webviews: RefCell<Vec<WebviewInstance>>,
     pub(crate) shortcut_manager: ShortcutRegistry,
     pub(crate) proxy: EventLoopProxy<UserWindowEvent>,
-    pub(crate) target: EventLoopWindowTarget<UserWindowEvent>,
+    pub(crate) target: Option<ActiveEventLoop>,
 }
 
 impl App {
     pub fn new(mut cfg: Config, virtual_dom: VirtualDom) -> (EventLoop<UserWindowEvent>, Self) {
-        let event_loop = cfg
-            .event_loop
-            .take()
-            .unwrap_or_else(|| EventLoopBuilder::<UserWindowEvent>::with_user_event().build());
+        let event_loop = cfg.event_loop.take().unwrap_or_else(|| {
+            EventLoop::<UserWindowEvent>::with_user_event()
+                .build()
+                .expect("unable to create new event")
+        });
 
         let app = Self {
             window_behavior: cfg.last_window_close_behavior,
@@ -66,7 +67,7 @@ impl App {
             webviews: HashMap::new(),
             control_flow: ControlFlow::Wait,
             unmounted_dom: Cell::new(Some(virtual_dom)),
-            float_all: false,
+            float_all: !cfg!(debug_assertions),
             show_devtools: false,
             cfg: Cell::new(Some(cfg)),
             shared: Rc::new(SharedContext {
@@ -74,7 +75,7 @@ impl App {
                 pending_webviews: Default::default(),
                 shortcut_manager: ShortcutRegistry::new(),
                 proxy: event_loop.create_proxy(),
-                target: event_loop.clone(),
+                target: None,
             }),
         };
 
@@ -104,11 +105,11 @@ impl App {
         (event_loop, app)
     }
 
-    pub fn tick(&mut self, window_event: &Event<'_, UserWindowEvent>) {
+    pub fn tick(&mut self, window_event: &WindowEvent) {
         self.control_flow = ControlFlow::Wait;
         self.shared
             .event_handlers
-            .apply_event(window_event, &self.shared.target);
+            .apply_event(window_event, self.shared.target);
     }
 
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
@@ -121,10 +122,12 @@ impl App {
         match event.id().0.as_str() {
             "dioxus-float-top" => {
                 for webview in self.webviews.values() {
-                    webview
-                        .desktop_context
-                        .window
-                        .set_always_on_top(self.float_all);
+                    if self.float_all {
+                        webview
+                            .desktop_context
+                            .window
+                            .set_window_level(winit::window::WindowLevel::AlwaysOnTop);
+                    }
                 }
                 self.float_all = !self.float_all;
             }
@@ -160,7 +163,7 @@ impl App {
             if button == tray_icon::MouseButton::Left {
                 for webview in self.webviews.values() {
                     webview.desktop_context.window.set_visible(true);
-                    webview.desktop_context.window.set_focus();
+                    webview.desktop_context.window.focus_window();
                 }
             }
         }
@@ -194,7 +197,9 @@ impl App {
 
                 self.webviews.remove(&id);
                 if self.webviews.is_empty() {
-                    self.control_flow = ControlFlow::Exit
+                    self.shared
+                        .proxy
+                        .send_event(UserWindowEvent::CloseWindow(id));
                 }
             }
 
@@ -219,7 +224,9 @@ impl App {
             WindowCloseBehaviour::LastWindowExitsApp
         ) && self.webviews.is_empty()
         {
-            self.control_flow = ControlFlow::Exit
+            self.shared
+                .proxy
+                .send_event(UserWindowEvent::CloseWindow(id));
         }
     }
 
@@ -246,10 +253,10 @@ impl App {
 
     pub fn handle_start_cause_init(&mut self) {
         let virtual_dom = self.unmounted_dom.take().unwrap();
-        let mut cfg = self.cfg.take().unwrap();
+        let cfg = self.cfg.take().unwrap();
 
-        self.is_visible_before_start = cfg.window.window.visible;
-        cfg.window = cfg.window.with_visible(false);
+        self.is_visible_before_start = cfg.window.is_visible().unwrap_or(false);
+        cfg.window.set_visible(false);
 
         let webview = WebviewInstance::new(cfg, virtual_dom, self.shared.clone());
 
@@ -297,7 +304,9 @@ impl App {
     pub fn handle_close_msg(&mut self, id: WindowId) {
         self.webviews.remove(&id);
         if self.webviews.is_empty() {
-            self.control_flow = ControlFlow::Exit
+            self.shared
+                .proxy
+                .send_event(UserWindowEvent::CloseWindow(id));
         }
     }
 
@@ -337,7 +346,9 @@ impl App {
                 // Maybe we could just binary patch ourselves in place without losing window state?
             }
             DevserverMsg::Shutdown => {
-                self.control_flow = ControlFlow::Exit;
+                if let Some(window) = &self.shared.target {
+                    window.exit();
+                }
             }
         }
     }
@@ -487,8 +498,9 @@ impl App {
                 let window = &webview.desktop_context.window;
                 let position = (state.x, state.y);
                 let size = (state.width, state.height);
-                window.set_outer_position(tao::dpi::PhysicalPosition::new(position.0, position.1));
-                window.set_inner_size(tao::dpi::PhysicalSize::new(size.0, size.1));
+                window
+                    .set_outer_position(winit::dpi::PhysicalPosition::new(position.0, position.1));
+                window.request_inner_size(winit::dpi::PhysicalSize::new(size.0, size.1));
             }
         }
     }
@@ -540,7 +552,7 @@ pub fn hide_app_window(window: &wry::WebView) {
 
     #[cfg(target_os = "linux")]
     {
-        use tao::platform::unix::WindowExtUnix;
+        use winit::platform::unix::WindowExtUnix;
         window.set_visible(false);
     }
 
