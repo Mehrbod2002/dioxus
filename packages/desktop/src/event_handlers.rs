@@ -1,10 +1,7 @@
 use crate::{ipc::UserWindowEvent, window};
 use slab::Slab;
 use std::cell::RefCell;
-use winit::{
-    event::{Event, WindowEvent},
-    window::WindowId,
-};
+use winit::{event::Event, event_loop::ActiveEventLoop, window::WindowId};
 
 /// The unique identifier of a window event handler. This can be used to later remove the handler.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -26,14 +23,14 @@ struct WryWindowEventHandlerInner {
     window_id: WindowId,
 
     #[allow(clippy::type_complexity)]
-    handler: Box<dyn FnMut(&Event<UserWindowEvent>, &WindowEvent) + 'static>,
+    handler: Box<dyn FnMut(&Event<UserWindowEvent>, &ActiveEventLoop) + 'static>,
 }
 
 impl WindowEventHandlers {
     pub(crate) fn add(
         &self,
         window_id: WindowId,
-        handler: impl FnMut(&Event<UserWindowEvent>, &WindowEvent) + 'static,
+        handler: impl FnMut(&Event<UserWindowEvent>, &ActiveEventLoop) + 'static,
     ) -> WryEventHandler {
         WryEventHandler(
             self.handlers
@@ -49,7 +46,7 @@ impl WindowEventHandlers {
         self.handlers.borrow_mut().try_remove(id.0);
     }
 
-    pub fn apply_event(&self, event: &Event<UserWindowEvent>, target: &WindowEvent) {
+    pub fn apply_event(&self, event: &Event<UserWindowEvent>, target: &ActiveEventLoop) {
         for (_, handler) in self.handlers.borrow_mut().iter_mut() {
             // if this event does not apply to the window this listener cares about, return
             if let Event::WindowEvent { window_id, .. } = event {

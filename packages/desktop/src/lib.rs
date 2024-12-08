@@ -31,6 +31,9 @@ mod mobile_shortcut;
 /// The main entrypoint for this crate
 pub mod launch;
 
+use std::env;
+use std::sync::OnceLock;
+
 // Reexport tao and wry, might want to re-export other important things
 pub use winit;
 pub use winit::dpi::{LogicalPosition, LogicalSize};
@@ -52,3 +55,25 @@ pub use event_handlers::WryEventHandler;
 pub use hooks::*;
 pub use shortcut::{ShortcutHandle, ShortcutRegistryError};
 pub use wry::RequestAsyncResponder;
+
+#[derive(Clone)]
+enum DisplayServer {
+    Wayland,
+    X11,
+}
+
+static DISPLAY_SERVER: OnceLock<DisplayServer> = OnceLock::new();
+
+impl DisplayServer {
+    pub fn detect() -> DisplayServer {
+        DISPLAY_SERVER
+            .get_or_init(|| {
+                if env::var("WAYLAND_DISPLAY").is_ok() {
+                    DisplayServer::Wayland
+                } else {
+                    DisplayServer::X11
+                }
+            })
+            .clone()
+    }
+}

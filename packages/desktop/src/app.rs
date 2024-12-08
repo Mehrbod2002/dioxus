@@ -6,6 +6,7 @@ use crate::{
     query::QueryResult,
     shortcut::ShortcutRegistry,
     webview::WebviewInstance,
+    DisplayServer,
 };
 use dioxus_core::{ElementId, VirtualDom};
 use dioxus_html::PlatformEventData;
@@ -18,7 +19,7 @@ use std::{
 };
 use winit::{
     dpi::PhysicalSize,
-    event::WindowEvent,
+    event::Event,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
     window::WindowId,
 };
@@ -105,11 +106,13 @@ impl App {
         (event_loop, app)
     }
 
-    pub fn tick(&mut self, window_event: &WindowEvent) {
-        self.control_flow = ControlFlow::Wait;
-        self.shared
-            .event_handlers
-            .apply_event(window_event, self.shared.target);
+    pub fn tick(&mut self, window_event: &Event<UserWindowEvent>) {
+        if let Some(target) = &self.shared.target {
+            self.control_flow = ControlFlow::Wait;
+            self.shared
+                .event_handlers
+                .apply_event(window_event, &target);
+        }
     }
 
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
@@ -346,8 +349,10 @@ impl App {
                 // Maybe we could just binary patch ourselves in place without losing window state?
             }
             DevserverMsg::Shutdown => {
-                if let Some(window) = &self.shared.target {
-                    window.exit();
+                if let Some(cfg) = self.cfg.get_mut() {
+                    self.shared
+                        .proxy
+                        .send_event(UserWindowEvent::CloseWindow(cfg.window_id));
                 }
             }
         }
@@ -552,8 +557,16 @@ pub fn hide_app_window(window: &wry::WebView) {
 
     #[cfg(target_os = "linux")]
     {
-        use winit::platform::unix::WindowExtUnix;
-        window.set_visible(false);
+        match DisplayServer::detect() {
+            DisplayServer::Wayland => {
+                use winit::platform::wayland::WindowAttributesExtWayland;
+                window.set_visible(false);
+            }
+            DisplayServer::X11 => {
+                use winit::platform::x11::WindowAttributesExtX11;
+                window.set_visible(false);
+            }
+        }
     }
 
     #[cfg(target_os = "macos")]

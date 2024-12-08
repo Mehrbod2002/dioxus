@@ -4,9 +4,8 @@ use crate::{app::App, ipc::UserWindowEvent};
 use dioxus_core::*;
 use dioxus_document::eval;
 use std::any::Any;
-use std::rc::Rc;
 use winit::application::ApplicationHandler;
-use winit::event_loop::{self, ActiveEventLoop, EventLoop};
+use winit::event::WindowEvent;
 
 /// Launch the WebView and run the event loop, with configuration and root props.
 ///
@@ -30,14 +29,20 @@ struct Launch {
 }
 
 impl ApplicationHandler<UserWindowEvent> for Launch {
+    fn suspended(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
+        self.app.handle_loop_destroyed();
+    }
+
+    fn exiting(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
+        self.app.handle_loop_destroyed();
+    }
+
     fn new_events(
         &mut self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
-        cause: winit::event::StartCause,
+        _event_loop: &winit::event_loop::ActiveEventLoop,
+        _cause: winit::event::StartCause,
     ) {
         self.app.handle_start_cause_init();
-
-        *control_flow = self.app.control_flow;
     }
 
     fn user_event(
@@ -45,8 +50,9 @@ impl ApplicationHandler<UserWindowEvent> for Launch {
         event_loop: &winit::event_loop::ActiveEventLoop,
         event: UserWindowEvent,
     ) {
+        let custom_event = winit::event::Event::UserEvent(event.clone());
         if let Some(ref mut f) = self.custom_event_handler {
-            f(&event, &event_loop)
+            f(&custom_event, event_loop)
         }
         match event {
             UserWindowEvent::Poll(id) => self.app.poll_vdom(id),
@@ -118,18 +124,22 @@ impl ApplicationHandler<UserWindowEvent> for Launch {
         }
     }
 
-    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+    fn resumed(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
         self.app.handle_start_cause_init();
-        self.app.shared.target = Some(event_loop);
     }
 
     fn window_event(
         &mut self,
         _event_loop: &winit::event_loop::ActiveEventLoop,
-        _window_id: winit::window::WindowId,
+        window_id: winit::window::WindowId,
         event: winit::event::WindowEvent,
     ) {
-        self.app.tick(&event);
+        match event {
+            WindowEvent::CloseRequested => self.app.handle_close_requested(window_id),
+            WindowEvent::Destroyed { .. } => self.app.window_destroyed(window_id),
+            WindowEvent::Resized(new_size) => self.app.resize_window(new_size),
+            _ => {}
+        }
     }
 }
 

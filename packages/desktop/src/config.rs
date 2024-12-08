@@ -2,8 +2,9 @@ use dioxus_core::LaunchConfig;
 use std::borrow::Cow;
 use std::path::PathBuf;
 use std::sync::Arc;
+use winit::event::Event;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::window::{Icon, Window};
+use winit::window::{Icon, Window, WindowId};
 use wry::http::{Request as HttpRequest, Response as HttpResponse};
 use wry::RequestAsyncResponder;
 
@@ -58,8 +59,8 @@ pub struct Config {
     pub(crate) root_name: String,
     pub(crate) background_color: Option<(u8, u8, u8, u8)>,
     pub(crate) last_window_close_behavior: WindowCloseBehaviour,
+    pub(super) window_id: WindowId,
     pub(crate) custom_event_handler: Option<CustomEventHandler>,
-    active_event_loop: &ActiveEventLoop,
 }
 
 impl LaunchConfig for Config {}
@@ -90,12 +91,11 @@ impl Config {
         }
 
         let window = Arc::new(active_event_loop.create_window(window_attributes).unwrap());
-
+        let window_id = window.id();
         Self {
             window,
             as_child_window: false,
             event_loop: None,
-            active_event_loop,
             menu: MenuBuilderState::Unset,
             protocols: Vec::new(),
             asynchronous_protocols: Vec::new(),
@@ -105,6 +105,7 @@ impl Config {
             data_dir: None,
             custom_head: None,
             custom_index: None,
+            window_id,
             root_name: "main".to_string(),
             background_color: None,
             last_window_close_behavior: WindowCloseBehaviour::LastWindowExitsApp,
@@ -170,7 +171,7 @@ impl Config {
     /// Sets a custom callback to run whenever the event pool receives an event.
     pub fn with_custom_event_handler(
         mut self,
-        f: impl FnMut(&winit::event::Event<UserWindowEvent>, &ActiveEventLoop) + 'static,
+        f: impl FnMut(&Event<UserWindowEvent>, &ActiveEventLoop) + 'static,
     ) -> Self {
         self.custom_event_handler = Some(Box::new(f));
         self

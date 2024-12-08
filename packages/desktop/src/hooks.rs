@@ -10,7 +10,7 @@ use dioxus_core::{
 };
 
 use dioxus_hooks::use_callback;
-use winit::event::{Event, WindowEvent};
+use winit::{event::Event, event_loop::ActiveEventLoop};
 use wry::RequestAsyncResponder;
 
 /// Get an imperative handle to the current window
@@ -20,7 +20,7 @@ pub fn use_window() -> DesktopContext {
 
 /// Register an event handler that runs when a wry event is processed.
 pub fn use_wry_event_handler(
-    mut handler: impl FnMut(&Event<UserWindowEvent>, &WindowEvent) + 'static,
+    mut handler: impl FnMut(&Event<UserWindowEvent>, &ActiveEventLoop) + 'static,
 ) -> WryEventHandler {
     use dioxus_core::prelude::current_scope_id;
 

@@ -2,6 +2,7 @@ use crate::document::DesktopDocument;
 use crate::element::DesktopElement;
 use crate::file_upload::DesktopFileDragEvent;
 use crate::menubar::DioxusMenu;
+use crate::DisplayServer;
 use crate::{
     app::SharedContext,
     assets::AssetHandlerRegistry,
@@ -179,18 +180,18 @@ impl WebviewInstance {
         }
 
         // We assume that if the icon is None in cfg, then the user just didnt set it
-        if cfg.window.window_icon.is_none() {
-            window.set_window_icon(Some(
-                winit::window::Icon::from_rgba(
-                    include_bytes!("./assets/default_icon.bin").to_vec(),
-                    460,
-                    460,
-                )
-                .expect("image parse failed"),
-            ));
-        }
+        // if cfg.window.window_icon.is_none() {
+        //     window.set_window_icon(Some(
+        //         winit::window::Icon::from_rgba(
+        //             include_bytes!("./assets/default_icon.bin").to_vec(),
+        //             460,
+        //             460,
+        //         )
+        //         .expect("image parse failed"),
+        //     ));
+        // } // DEV
 
-        let window = window.build(&shared.target).unwrap();
+        // let window = window.build(&shared.target).unwrap(); // DEV
 
         // https://developer.apple.com/documentation/appkit/nswindowcollectionbehavior/nswindowcollectionbehaviormanaged
         #[cfg(target_os = "macos")]
@@ -308,10 +309,20 @@ impl WebviewInstance {
             target_os = "android"
         )))]
         let mut webview = {
-            use winit::platform::unix::WindowExtUnix;
             use wry::WebViewBuilderExtUnix;
-            let vbox = window.default_vbox().unwrap();
-            WebViewBuilder::new_gtk(vbox)
+
+            match DisplayServer::detect() {
+                DisplayServer::Wayland => {
+                    use winit::platform::wayland::WindowAttributesExtWayland;
+                    let vbox = window.default_vbox().unwrap();
+                    WebViewBuilder::new_gtk(vbox)
+                }
+                DisplayServer::X11 => {
+                    use winit::platform::x11::WindowAttributesExtX11;
+                    let vbox = window.default_vbox().unwrap();
+                    WebViewBuilder::new_gtk(vbox)
+                }
+            }
         };
 
         // Disable the webview default shortcuts to disable the reload shortcut
@@ -329,7 +340,7 @@ impl WebviewInstance {
                     window.inner_size().height,
                 )),
             })
-            .with_transparent(cfg.window.transparent)
+            // .with_transparent(cfg.window.transparent) // DEV
             .with_url("dioxus://index.html/")
             .with_ipc_handler(ipc_handler)
             .with_navigation_handler(|var| {
@@ -394,7 +405,7 @@ impl WebviewInstance {
 
         let desktop_context = Rc::from(DesktopService::new(
             webview,
-            window,
+            *window,
             shared.clone(),
             asset_handlers,
             file_hover,
