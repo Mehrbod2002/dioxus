@@ -7,6 +7,9 @@ use dioxus_core::*;
 use dioxus_document::eval;
 use std::any::Any;
 use std::fmt::Debug;
+use std::result::Result::Ok;
+use std::sync::mpsc::SyncSender;
+use std::sync::{mpsc::Receiver, Arc};
 use tao::event::{self, Event, StartCause, WindowEvent};
 use tao::event_loop::ControlFlow;
 use tao::window::{Window, WindowBuilder};
@@ -114,53 +117,59 @@ pub fn launch_virtual_dom_blocking(virtual_dom: VirtualDom, mut desktop_config: 
     })
 }
 
-/// App Channels
-#[derive(Debug, Clone, Copy)]
+/// App channels
+#[derive(Debug, Clone)]
 pub struct AppChannels {
-    /// Launch the Custom
-    pub launch: bool,
+    /// Sender for sending messages to the WebViewx
+    pub tx: SyncSender<String>,
+    /// Receiver for receiving messages from the WebView
+    pub rx: Arc<Receiver<String>>,
 }
-
-impl AppChannels {
-    /// get the value of the launch
-    pub fn get(&self) -> bool {
-        self.launch
-    }
-
-    /// set the value of the launch
-    pub fn set(&mut self, value: bool) {
-        self.launch = value;
-    }
-}
-
 /// Launch the WebView and run the event loop, with configuration and root props.
-pub fn launch_virtual_dom_blockin_with_custom_window<T: 'static, P: 'static + Debug + Clone>(
+pub fn launch_virtual_dom_blockin_with_custom_window<
+    T: 'static,
+    P: 'static + Send + Debug + Clone,
+>(
     virtual_dom: VirtualDom,
     mut desktop_config: Config,
     window_builder: WindowBuilder,
     mut app_custom: T,
-    set_window_state: impl FnOnce(&mut T, Window) + 'static + Clone + Copy,
+    set_window_state: impl FnOnce(&mut T, Arc<Window>) + 'static + Clone,
     custom_runner: fn(&mut T, &event::Event<'_, UserWindowEvent>, &mut ControlFlow),
     props: P,
 ) -> !
 where
     P: Into<AppChannels>,
 {
+    let props: AppChannels = props.into();
+
     let mut custom_event_handler = desktop_config.custom_event_handler.take();
     let (event_loop, mut app) = App::new(desktop_config, virtual_dom);
 
-    let set_window_state = std::sync::Arc::new(set_window_state);
+    let custom_window: Window = window_builder.build(&event_loop).unwrap();
+    let custom_window = Arc::new(custom_window);
 
-    let custom_window: Window = window_builder.clone().build(&event_loop).unwrap();
-    let set_window_state = std::sync::Arc::clone(&set_window_state);
-    (set_window_state)(&mut app_custom, custom_window);
+    set_window_state(&mut app_custom, custom_window.clone());
+
     event_loop.run(move |window_event, event_loop, control_flow| {
         app.tick(&window_event);
 
-        custom_runner(&mut app_custom, &window_event, control_flow);
+        if let Ok(message) = props.rx.try_recv() {
+            if message == "init" {
+                custom_window.set_visible(true);
+                custom_runner(&mut app_custom, &window_event, control_flow);
+                if let Some(ref mut handler) = custom_event_handler {
+                    handler(&window_event, event_loop);
+                }
+            }
+        }
 
-        if let Some(ref mut handler) = custom_event_handler {
-            handler(&window_event, event_loop);
+        if custom_window.is_visible() {
+            custom_runner(&mut app_custom, &window_event, control_flow);
+
+            if let Some(ref mut handler) = custom_event_handler {
+                handler(&window_event, event_loop);
+            }
         }
 
         match window_event {
@@ -252,20 +261,20 @@ where
 }
 
 /// Launch a window with custom configuration and event handling.
-pub fn launch_with_custom_window<T: 'static + Send, P: 'static + Send + Debug + Clone + Copy>(
+pub fn launch_with_custom_window<T: 'static + Send, P: 'static + Send + Debug + Clone>(
     root: fn(P) -> Element,
     contexts: Vec<Box<dyn Fn() -> Box<dyn Any> + Send + Sync>>,
     platform_config: Config,
     window_builder: WindowBuilder,
     app_custom: T,
-    set_window_state: fn(&mut T, Window),
+    set_window_state: fn(&mut T, Arc<Window>),
     custom_runner: fn(&mut T, &event::Event<'_, UserWindowEvent>, &mut ControlFlow),
     props: P,
 ) -> !
 where
     P: Into<AppChannels>,
 {
-    let mut virtual_dom = VirtualDom::new_with_props(root, props);
+    let mut virtual_dom = VirtualDom::new_with_props(root, props.clone());
 
     for context in contexts {
         virtual_dom.insert_any_root_context(context())
