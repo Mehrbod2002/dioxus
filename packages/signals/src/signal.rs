@@ -19,6 +19,9 @@ pub struct Signal<T: 'static, S: Storage<SignalData<T>> = UnsyncStorage> {
     pub(crate) inner: CopyValue<SignalData<T>, S>,
 }
 
+unsafe impl<T> Send for Signal<T> {}
+unsafe impl<T> Sync for Signal<T> {}
+
 /// A signal that can safely shared between threads.
 #[doc(alias = "SendSignal")]
 #[doc(alias = "UseRwLock")]

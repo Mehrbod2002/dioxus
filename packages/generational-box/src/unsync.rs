@@ -51,6 +51,9 @@ pub struct UnsyncStorage {
     data: RefCell<StorageEntry<RefCellStorageEntryData>>,
 }
 
+unsafe impl Send for UnsyncStorage {}
+unsafe impl Sync for UnsyncStorage {}
+
 impl UnsyncStorage {
     pub(crate) fn read(
         pointer: GenerationalPointer<Self>,
