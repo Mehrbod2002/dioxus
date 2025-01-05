@@ -9,6 +9,7 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::result::Result::Ok;
 use std::sync::mpsc::SyncSender;
+use std::sync::Mutex;
 use std::sync::{mpsc::Receiver, Arc};
 use tao::event::{self, Event, StartCause, WindowEvent};
 use tao::event_loop::ControlFlow;
@@ -123,7 +124,7 @@ pub struct AppChannels {
     /// Sender for sending messages to the WebViewx
     pub tx: SyncSender<String>,
     /// Receiver for receiving messages from the WebView
-    pub rx: Arc<Receiver<String>>,
+    pub rx: Arc<Mutex<Receiver<String>>>,
 }
 /// Launch the WebView and run the event loop, with configuration and root props.
 pub fn launch_virtual_dom_blockin_with_custom_window<
@@ -154,12 +155,14 @@ where
     event_loop.run(move |window_event, event_loop, control_flow| {
         app.tick(&window_event);
 
-        if let Ok(message) = props.rx.try_recv() {
-            if message == "init" {
-                custom_window.set_visible(true);
-                custom_runner(&mut app_custom, &window_event, control_flow);
-                if let Some(ref mut handler) = custom_event_handler {
-                    handler(&window_event, event_loop);
+        if let Ok(message) = props.rx.lock() {
+            if let Ok(message) = message.try_recv() {
+                if message == "init" {
+                    custom_window.set_visible(true);
+                    custom_runner(&mut app_custom, &window_event, control_flow);
+                    if let Some(ref mut handler) = custom_event_handler {
+                        handler(&window_event, event_loop);
+                    }
                 }
             }
         }
