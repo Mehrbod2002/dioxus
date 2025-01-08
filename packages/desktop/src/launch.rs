@@ -119,7 +119,7 @@ pub fn launch_virtual_dom_blocking(virtual_dom: VirtualDom, mut desktop_config: 
 }
 
 /// App channels
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AppChannels<C> {
     /// Sender for sending messages to the WebViewx
     pub tx: SyncSender<String>,
