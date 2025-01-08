@@ -133,8 +133,8 @@ pub struct AppChannels<C> {
 /// Launch the WebView and run the event loop, with configuration and root props.
 pub fn launch_virtual_dom_blockin_with_custom_window<
     T: 'static,
-    P: 'static + Send + Debug + Clone,
-    C: 'static + Send + Sync + Debug + Clone,
+    P: 'static + Send + Clone,
+    C: 'static + Send + Sync + Clone,
 >(
     virtual_dom: VirtualDom,
     mut desktop_config: Config,
@@ -291,8 +291,8 @@ where
 /// Launch a window with custom configuration and event handling.
 pub fn launch_with_custom_window<
     T: 'static + Send,
-    P: 'static + Send + Debug + Clone,
-    C: 'static + Send + Sync + Debug + Clone,
+    P: 'static + Send + Clone,
+    C: 'static + Send + Sync + Clone,
 >(
     root: fn(P) -> Element,
     contexts: Vec<Box<dyn Fn() -> Box<dyn Any> + Send + Sync>>,
