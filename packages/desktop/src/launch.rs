@@ -120,29 +120,40 @@ pub fn launch_virtual_dom_blocking(virtual_dom: VirtualDom, mut desktop_config: 
 
 /// App channels
 #[derive(Debug, Clone)]
-pub struct AppChannels {
+pub struct AppChannels<C> {
     /// Sender for sending messages to the WebViewx
     pub tx: SyncSender<String>,
     /// Receiver for receiving messages from the WebView
     pub rx: Arc<Mutex<Receiver<String>>>,
+    /// Sender events socket
+    pub window_events_sender: Option<SyncSender<C>>,
+    /// Receiver events socket
+    pub window_events_receiver: Option<Arc<Mutex<Receiver<C>>>>,
 }
 /// Launch the WebView and run the event loop, with configuration and root props.
 pub fn launch_virtual_dom_blockin_with_custom_window<
     T: 'static,
     P: 'static + Send + Debug + Clone,
+    C: 'static + Send + Sync + Debug + Clone,
 >(
     virtual_dom: VirtualDom,
     mut desktop_config: Config,
     window_builder: WindowBuilder,
     mut app_custom: T,
     set_window_state: impl FnOnce(&mut T, Arc<Window>) + 'static + Clone,
-    custom_runner: fn(&mut T, &event::Event<'_, UserWindowEvent>, &mut ControlFlow),
+    custom_runner: fn(
+        &mut T,
+        &event::Event<'_, UserWindowEvent>,
+        &mut ControlFlow,
+        bool,
+        Option<C>,
+    ),
     props: P,
 ) -> !
 where
-    P: Into<AppChannels>,
+    P: Into<AppChannels<C>>,
 {
-    let props: AppChannels = props.into();
+    let props: AppChannels<C> = props.into();
 
     let mut custom_event_handler = desktop_config.custom_event_handler.take();
     let (event_loop, mut app) = App::new(desktop_config, virtual_dom);
@@ -159,7 +170,7 @@ where
             if let Ok(message) = message.try_recv() {
                 if message == "init" {
                     custom_window.set_visible(true);
-                    custom_runner(&mut app_custom, &window_event, control_flow);
+                    custom_runner(&mut app_custom, &window_event, control_flow, false, None);
                     if let Some(ref mut handler) = custom_event_handler {
                         handler(&window_event, event_loop);
                     }
@@ -167,8 +178,22 @@ where
             }
         }
 
+        if let Some(ref receiver) = props.window_events_receiver {
+            if let Ok(lock) = receiver.lock() {
+                if let Ok(event) = lock.try_recv() {
+                    custom_runner(
+                        &mut app_custom,
+                        &window_event,
+                        control_flow,
+                        true,
+                        Some(event),
+                    );
+                }
+            }
+        }
+
         if custom_window.is_visible() {
-            custom_runner(&mut app_custom, &window_event, control_flow);
+            custom_runner(&mut app_custom, &window_event, control_flow, false, None);
 
             if let Some(ref mut handler) = custom_event_handler {
                 handler(&window_event, event_loop);
@@ -264,18 +289,28 @@ where
 }
 
 /// Launch a window with custom configuration and event handling.
-pub fn launch_with_custom_window<T: 'static + Send, P: 'static + Send + Debug + Clone>(
+pub fn launch_with_custom_window<
+    T: 'static + Send,
+    P: 'static + Send + Debug + Clone,
+    C: 'static + Send + Sync + Debug + Clone,
+>(
     root: fn(P) -> Element,
     contexts: Vec<Box<dyn Fn() -> Box<dyn Any> + Send + Sync>>,
     platform_config: Config,
     window_builder: WindowBuilder,
     app_custom: T,
     set_window_state: fn(&mut T, Arc<Window>),
-    custom_runner: fn(&mut T, &event::Event<'_, UserWindowEvent>, &mut ControlFlow),
+    custom_runner: fn(
+        &mut T,
+        &event::Event<'_, UserWindowEvent>,
+        &mut ControlFlow,
+        bool,
+        Option<C>,
+    ),
     props: P,
 ) -> !
 where
-    P: Into<AppChannels>,
+    P: Into<AppChannels<C>>,
 {
     let mut virtual_dom = VirtualDom::new_with_props(root, props.clone());
 
