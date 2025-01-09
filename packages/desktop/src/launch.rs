@@ -6,7 +6,6 @@ use crate::{
 use dioxus_core::*;
 use dioxus_document::eval;
 use std::any::Any;
-use std::fmt::Debug;
 use std::result::Result::Ok;
 use std::sync::mpsc::SyncSender;
 use std::sync::Mutex;
