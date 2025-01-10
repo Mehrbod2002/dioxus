@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tao::window::WindowId;
 
+/// User Window Events
 #[non_exhaustive]
 #[derive(Debug, Clone)]
 pub enum UserWindowEvent {
