@@ -9,12 +9,15 @@ pub enum UserWindowEvent {
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
     GlobalHotKeyEvent(global_hotkey::GlobalHotKeyEvent),
 
+    /// Muda menu events
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
     MudaMenuEvent(muda::MenuEvent),
 
+    /// Icons events
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
     TrayIconEvent(tray_icon::TrayIconEvent),
 
+    /// Tray menu event
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
     TrayMenuEvent(tray_icon::menu::MenuEvent),
 
@@ -23,7 +26,9 @@ pub enum UserWindowEvent {
 
     /// Handle an ipc message eminating from the window.postMessage of a given webview
     Ipc {
+        /// Window ID
         id: WindowId,
+        /// IPC message
         msg: IpcMessage,
     },
 
@@ -32,8 +37,11 @@ pub enum UserWindowEvent {
     HotReloadEvent(dioxus_devtools::DevserverMsg),
 
     // Windows-only drag-n-drop fix events.
+    /// Window drag and drop
     WindowsDragDrop(WindowId),
+    /// Window Drag Over
     WindowsDragOver(WindowId, i32, i32),
+    /// Window Drag Leave
     WindowsDragLeave(WindowId),
 
     /// Create a new window
