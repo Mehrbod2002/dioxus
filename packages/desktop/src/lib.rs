@@ -44,7 +44,7 @@ pub use muda;
 // Tray icon
 #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
 pub mod trayicon;
-
+pub use ipc::UserWindowEvent;
 // Public exports
 pub use assets::AssetRequest;
 pub use config::{Config, WindowCloseBehaviour};
