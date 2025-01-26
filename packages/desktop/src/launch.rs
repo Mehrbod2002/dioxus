@@ -137,9 +137,10 @@ pub fn launch_virtual_dom_blockin_with_custom_window<
 >(
     virtual_dom: VirtualDom,
     mut desktop_config: Config,
+    uri: String,
     window_builder: WindowBuilder,
     mut app_custom: T,
-    set_window_state: impl FnOnce(&mut T, Arc<Window>) + 'static + Clone,
+    set_window_state: impl FnOnce(&mut T, Arc<Window>, String) + 'static + Clone,
     custom_runner: fn(
         &mut T,
         &event::Event<'_, UserWindowEvent>,
@@ -160,7 +161,7 @@ where
     let custom_window: Window = window_builder.build(&event_loop).unwrap();
     let custom_window = Arc::new(custom_window);
 
-    set_window_state(&mut app_custom, custom_window.clone());
+    set_window_state(&mut app_custom, custom_window.clone(), uri);
 
     event_loop.run(move |window_event, event_loop, control_flow| {
         app.tick(&window_event);
@@ -296,9 +297,10 @@ pub fn launch_with_custom_window<
     root: fn(P) -> Element,
     contexts: Vec<Box<dyn Fn() -> Box<dyn Any> + Send + Sync>>,
     platform_config: Config,
+    uri: String,
     window_builder: WindowBuilder,
     app_custom: T,
-    set_window_state: fn(&mut T, Arc<Window>),
+    set_window_state: fn(&mut T, Arc<Window>, String),
     custom_runner: fn(
         &mut T,
         &event::Event<'_, UserWindowEvent>,
@@ -320,6 +322,7 @@ where
     launch_virtual_dom_blockin_with_custom_window(
         virtual_dom,
         platform_config,
+        uri,
         window_builder,
         app_custom,
         set_window_state,
